@@ -45,27 +45,23 @@ def generate_tasksets(utilizations, periods, filename):
     return result
 
 
-def myfunc(e):
-    return e[0][1]
-
-
 def assign_preemption_level(taskset: list):
-    taskset.sort(key=myfunc)
+    taskset = sorted(taskset, key=lambda x: x[0], reverse=True)
     i = 1
     j = len(taskset) - 1
-    while j >= 0:
-        taskset[j][0] += (i,)
-        if j != 0:
-            if taskset[j-1][0][1] != taskset[j][0][1]:
-                i = i + 1
+    while j >= 0:        
+        taskset[j] += (i,)
+        if j != 0:            
+            if taskset[j-1][1] != taskset[j][1]:
+                i = i + 1        
         j = j - 1
-
     return taskset
+
 
 
 def assign_resources(temp, res_num):
     for t in temp:
-        executionTime = t[0][0]
+        executionTime = t[0]
         res_points = [random.uniform(0, executionTime) for _ in range(0, 2*res_num)]
         res_points.sort()
         tuples_list = [(res_points[i], res_points[i + 1]) for i in range(0, len(res_points), 2)]
@@ -75,12 +71,12 @@ def assign_resources(temp, res_num):
 
 def createTasks(temp, resources):
     for i in range(0, len(temp)):
-        a = temp[i][0]
+        a = temp[i]
         yield MyTask(a[0]/a[1], a[1], a[0], a[2], resources[i])
 
 
 def assign_tasks_to_cores(tasks, number_of_cores):
-    sorted_tasks = sorted(tasks, key=lambda task: task.utilization)
+    sorted_tasks = sorted(tasks, key=lambda task: task.utilization, reverse=True)
     result = [[] for _ in range(0, number_of_cores)]
     core_utilizations = [0 for _ in range(0, number_of_cores)]
 
@@ -107,11 +103,13 @@ class MyTask:
 n = 100
 number_of_cores = 4
 
-temp = generate_tasksets(generate_uunifastdiscard(n, 0.5, 1),
-                         generate_random_periods_discrete(n, n, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]), "a.csv")
+temp = generate_tasksets(generate_uunifastdiscard(1, number_of_cores-2, 100),
+                         generate_random_periods_discrete(n, 1, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]), "a.csv")
 
 
-preemptionLevels = assign_preemption_level(temp)
+temp = temp[0]
+
+temp = assign_preemption_level(temp)
 res_num = random.randint(2, 2)
 resources = assign_resources(temp, res_num)
 resources = list(resources)
