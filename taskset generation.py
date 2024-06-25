@@ -46,11 +46,11 @@ def generate_tasksets(utilizations, periods, filename):
 
 
 def myfunc(e):
-    return e[0][1]
+    return e[0][0]
 
 
 def assign_preemption_level(taskset: list):
-    taskset.sort(key=myfunc)
+    taskset = sorted(taskset, key=lambda x: x[0], reverse=True)
     i = 1
     j = len(taskset) - 1
     while j >= 0:
@@ -62,9 +62,11 @@ def assign_preemption_level(taskset: list):
 
     return taskset
 
+tmp = generate_uunifastdiscard(1, 5, 100)
 
-x =  generate_random_periods_discrete(100, 100, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
-temp = generate_tasksets(generate_uunifastdiscard(100, 0.5, 1),
+x =  generate_random_periods_discrete(100, 1, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+temp = generate_tasksets(generate_uunifastdiscard(1, 5, 100),
                          generate_random_periods_discrete(100, 100, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]), "a.csv")
+temp = temp[0]
 assign_preemption_level(temp)
 print(temp)
