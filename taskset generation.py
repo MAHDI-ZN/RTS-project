@@ -94,6 +94,8 @@ def get_time_remaining_to_next_arriving_tasks_from_t(tasks, time_):
         r = (task.period - (time_ % task.period)) % task.period
         if r == 0:
             if task.IsArrived:
+                if task.StartTime != time_:
+                    raise Exception("cannot schedule")
                 r = task.period
             else:
                 r = 0
@@ -122,6 +124,7 @@ class MyTask:
         self.IsArrived = True
         self.IsWaiting = False
         self.NeededResource = -1
+        self.StartTime = 0
     
     def get_allocated_resources(self):
         for res in self.resource_allocation_times:
@@ -247,7 +250,7 @@ delta_time = 0
 current_tasks = [None for _ in range(0, number_of_cores)]
 
 # tasks_to_run = core_tasks.copy()
-tasks_to_run = [[MyTask(0.5, 20, 5, 100, [(0,3)], 0), MyTask(0.5, 15, 2, 100, [(1,2)], 0)],\
+tasks_to_run = [[MyTask(0.8, 10, 8, 100, [(0,3)], 0), MyTask(0.8, 10, 8, 100, [(1,2)], 0)],\
                 [MyTask(0.5, 20, 5, 100, [(0,3)], 1), MyTask(0.5, 20, 5, 100, [(0,3)], 1)]]
 
 tasks = np.array(tasks_to_run).flatten().tolist()
@@ -339,6 +342,7 @@ while True:
         
         arrived_task = closest_arriving_time_and_task[0]
         arrived_task.IsArrived = True
+        arrived_task.StartTime = time_ + delta_time
         
         running_task = current_tasks[arrived_task.core]
         if running_task is not None:
