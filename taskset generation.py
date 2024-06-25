@@ -89,7 +89,17 @@ def assign_tasks_to_cores(tasks, number_of_cores):
     return result
 
 def get_time_remaining_to_next_arriving_tasks_from_t(tasks, time_):
-    remaining_times_to_arrival_from_t = [(task.period - (time_ % task.period)) % task.period for task in tasks]
+    remaining_times_to_arrival_from_t = []
+    for task in tasks:
+        r = (task.period - (time_ % task.period)) % task.period
+        if r == 0:
+            if task.IsArrived:
+                r = task.period
+            else:
+                r = 0
+
+        remaining_times_to_arrival_from_t.append(r)
+    
     min_remaining_time_i = remaining_times_to_arrival_from_t.index(min(remaining_times_to_arrival_from_t))
     return tasks[min_remaining_time_i], remaining_times_to_arrival_from_t[min_remaining_time_i]
 
@@ -97,7 +107,7 @@ class MyTask:
     task_count = 0
     resources_allocated = []
 
-    def __init__(self, utilization, period, executionTime, preemptionLevel, resourceAllocationTimes):
+    def __init__(self, utilization, period, executionTime, preemptionLevel, resourceAllocationTimes, core = -1):
         self.utilization = utilization
         self.period = period
         self.execution_time = executionTime
@@ -106,7 +116,7 @@ class MyTask:
         self.task_number = MyTask.task_count
         MyTask.task_count += 1
 
-        self.core = -1
+        self.core = core
 
         self.executed_time = 0
         self.IsArrived = True
@@ -139,6 +149,9 @@ class MyTask:
         next_releasing_resource = allocated_resouce_indices[next_relesing_resource_index_in_list]
         time_to_release = remaining_resource_allocating_times[next_relesing_resource_index_in_list]
         
+        if self.NeededResource == next_releasing_resource:
+            return [None, None]
+        
         return next_releasing_resource, time_to_release    
     
     def get_next_allocating(self):
@@ -148,14 +161,20 @@ class MyTask:
         if not self.IsArrived:
             return [None, None]
         
-        not_allocated_resouce_indices = filter(lambda i : self.executed_time < self.resource_allocation_times[i][0], \
+        not_allocated_resouce_indices2 = filter(lambda i : self.executed_time <= self.resource_allocation_times[i][0], \
                                                range(0, len(self.resource_allocation_times)))
         
+        not_allocated_resouce_indices = []
+        for i in not_allocated_resouce_indices2:
+            if not (MyTask.resources_allocated[i] == self or self.NeededResource == i):
+                not_allocated_resouce_indices.append(i)
+        
+        not_allocated_resouce_indices = list(not_allocated_resouce_indices)
         if len(not_allocated_resouce_indices) == 0:
             return [None, None]
 
         remaining_time_to_allocate = \
-            [(self.executed_time - self.resource_allocation_times[res_index][0]) for res_index in not_allocated_resouce_indices] 
+            [(self.resource_allocation_times[res_index][0] - self.executed_time) for res_index in not_allocated_resouce_indices] 
         next_allocating_resource_index_in_list = \
             remaining_time_to_allocate.index(min(remaining_time_to_allocate))
         
@@ -196,7 +215,7 @@ class MyTask:
         self.executed_time = 0
 
     def in_critical_scetion(self):
-        return self.IsWaiting or len(self.get_allocated_resources()) > 0
+        return self.IsWaiting or len(list(self.get_allocated_resources())) > 0
 
 
 
@@ -226,7 +245,12 @@ print(resources)
 time_ = 0
 delta_time = 0
 current_tasks = [None for _ in range(0, number_of_cores)]
+
 tasks_to_run = core_tasks.copy()
+# tasks_to_run = [[MyTask(0.5, 20, 5, 100, [(0,3)], 0), MyTask(0.5, 15, 2, 100, [(1,2)], 0)],\
+#                 [MyTask(0.5, 20, 5, 100, [(0,3)], 1), MyTask(0.5, 20, 5, 100, [(0,3)], 1)]]
+
+# tasks = np.array(tasks_to_run).flatten().tolist()
 
 for core_num in range(0, number_of_cores):
     to_runs = tasks_to_run[core_num]
@@ -240,7 +264,7 @@ while True:
     remaining_time_to_finishs = [10000 if t is None else t.execution_time - t.executed_time for t in current_tasks]
 
     closest_arriving_time_and_task = get_time_remaining_to_next_arriving_tasks_from_t(tasks, time_)
-    closest_arriving = closest_arriving_time_and_task[1]
+    closest_arriving = 1000 if closest_arriving_time_and_task[1] is None else closest_arriving_time_and_task[1]
 
     time_points = \
         [min(closest_releasings), min(closest_allocatings), min(remaining_time_to_finishs), closest_arriving]
@@ -249,13 +273,14 @@ while True:
 
     if closest_time_point_index == 0:
         delta_time = min(closest_releasings)
-        for current_task in current_tasks:
-            current_task.execute(delta_time)
 
         closest_releasing = closest_releasings.index(min(closest_releasings))
         t : MyTask = current_tasks[closest_releasing]
-
         resource_index_to_release = t.get_next_releasing()[0]
+
+        for current_task in current_tasks:
+            current_task.execute(delta_time)
+
         t.finish_critical_section(resource_index_to_release)
 
         for current_task in current_tasks:
@@ -269,18 +294,16 @@ while True:
                 current_tasks[t.core] = to_run
                 break
 
-        
-
 
     if closest_time_point_index == 1:
+        closest_allocating = closest_allocatings.index(min(closest_allocatings))
+        t : MyTask = current_tasks[closest_allocating]
+        resource_index_to_allocate = t.get_next_allocating()[0]
+
         delta_time = min(closest_allocatings) 
         for current_task in current_tasks:
             current_task.execute(delta_time)
 
-        closest_allocating = closest_allocatings.index(min(closest_allocatings))
-        t : MyTask = current_tasks[closest_allocating]
-
-        resource_index_to_allocate = t.get_next_allocating()[0]
         t.start_critical_section(resource_index_to_allocate)
 
 
