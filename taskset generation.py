@@ -246,11 +246,11 @@ time_ = 0
 delta_time = 0
 current_tasks = [None for _ in range(0, number_of_cores)]
 
-tasks_to_run = core_tasks.copy()
-# tasks_to_run = [[MyTask(0.5, 20, 5, 100, [(0,3)], 0), MyTask(0.5, 15, 2, 100, [(1,2)], 0)],\
-#                 [MyTask(0.5, 20, 5, 100, [(0,3)], 1), MyTask(0.5, 20, 5, 100, [(0,3)], 1)]]
+# tasks_to_run = core_tasks.copy()
+tasks_to_run = [[MyTask(0.5, 20, 5, 100, [(0,3)], 0), MyTask(0.5, 15, 2, 100, [(1,2)], 0)],\
+                [MyTask(0.5, 20, 5, 100, [(0,3)], 1), MyTask(0.5, 20, 5, 100, [(0,3)], 1)]]
 
-# tasks = np.array(tasks_to_run).flatten().tolist()
+tasks = np.array(tasks_to_run).flatten().tolist()
 
 for core_num in range(0, number_of_cores):
     to_runs = tasks_to_run[core_num]
@@ -258,10 +258,11 @@ for core_num in range(0, number_of_cores):
     current_tasks[core_num] = task_to_run
 
 while True:
+    print(time_)
     closest_releasings = [10000 if t == None or t.get_next_releasing()[1] == None else t.get_next_releasing()[1] for t in current_tasks]
     closest_allocatings = [10000 if t == None or t.get_next_allocating()[1] == None else t.get_next_allocating()[1] for t in current_tasks]
 
-    remaining_time_to_finishs = [10000 if t is None else t.execution_time - t.executed_time for t in current_tasks]
+    remaining_time_to_finishs = [10000 if t is None else (10000 if t.IsWaiting else t.execution_time - t.executed_time) for t in current_tasks]
 
     closest_arriving_time_and_task = get_time_remaining_to_next_arriving_tasks_from_t(tasks, time_)
     closest_arriving = 1000 if closest_arriving_time_and_task[1] is None else closest_arriving_time_and_task[1]
@@ -279,18 +280,20 @@ while True:
         resource_index_to_release = t.get_next_releasing()[0]
 
         for current_task in current_tasks:
-            current_task.execute(delta_time)
+            if current_task != None:
+                current_task.execute(delta_time)
 
         t.finish_critical_section(resource_index_to_release)
 
         for current_task in current_tasks:
-            if current_task.try_continue(delta_time):
-                break
+            if current_task != None:
+                if current_task.try_continue(resource_index_to_release):
+                    break
         
         to_runs = tasks_to_run[t.core]
         to_runs = sorted([task for task in to_runs if task.IsArrived], key=lambda t: t.period)
         for to_run in to_runs:
-            if to_run.preemptionLevel > t.preemptionLevel:
+            if to_run.preemption_level > t.preemption_level:
                 current_tasks[t.core] = to_run
                 break
 
@@ -302,7 +305,8 @@ while True:
 
         delta_time = min(closest_allocatings) 
         for current_task in current_tasks:
-            current_task.execute(delta_time)
+            if current_task != None:
+                current_task.execute(delta_time)
 
         t.start_critical_section(resource_index_to_allocate)
 
@@ -311,30 +315,38 @@ while True:
         delta_time = min(remaining_time_to_finishs)
 
         for current_task in current_tasks:
-            current_task.execute(delta_time)
+            if current_task != None:
+                current_task.execute(delta_time)
         
         finished_task_core_number = remaining_time_to_finishs.index(min(remaining_time_to_finishs))
         task_to_finish = current_tasks[finished_task_core_number]
         task_to_finish.finish_Task()
         
         to_runs = tasks_to_run[finished_task_core_number]
-        task_to_run = sorted([task for task in to_runs if task.IsArrived], key=lambda t: t.period)[0]
-        current_tasks[finished_task_core_number] = task_to_run
+        task_to_run = sorted([task for task in to_runs if task.IsArrived], key=lambda t: t.period)
+        if len(task_to_run) > 0:
+            current_tasks[finished_task_core_number] = task_to_run[0]
+        else:
+            current_tasks[finished_task_core_number] = None
 
 
     if closest_time_point_index == 3:
         delta_time = closest_arriving
         
         for current_task in current_tasks:
-            current_task.execute(delta_time)
+            if current_task != None:
+                current_task.execute(delta_time)
         
         arrived_task = closest_arriving_time_and_task[0]
         arrived_task.IsArrived = True
         
         running_task = current_tasks[arrived_task.core]
-        if not running_task.in_critical_scetion():
-            if arrived_task.preemption_level > running_task.preemption_level:
-                current_tasks[arrived_task.core] = arrived_task
+        if running_task is not None:
+            if not running_task.in_critical_scetion():
+                if arrived_task.preemption_level > running_task.preemption_level:
+                    current_tasks[arrived_task.core] = arrived_task
+        else:
+            current_tasks[arrived_task.core] = arrived_task
 
 
     time_ += delta_time
